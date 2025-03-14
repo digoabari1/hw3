@@ -39,33 +39,44 @@ class GameProvider extends ChangeNotifier {
   }
 
   void flipCard(CardModel card) {
-    if (isProcessing || card.isMatched || card.isFaceUp) return;
+    if (isProcessing || card.isMatched) return;
 
-    card.isFaceUp = true;
-
-    if (firstSelected == null) {
-      firstSelected = card;
-    } else if (secondSelected == null) {
-      secondSelected = card;
-      isProcessing = true;
-      Future.delayed(Duration(seconds: 1), _checkMatch);
-    }
-
+    card.isFaceUp = !card.isFaceUp;
     notifyListeners();
+
+    if (card.isFaceUp) {
+      if (firstSelected == null) {
+        firstSelected = card;
+      } else if (secondSelected == null) {
+        secondSelected = card;
+        _checkMatch();
+      }
+    } else {
+      if (firstSelected == card) {
+        firstSelected = null;
+      } else if (secondSelected == card) {
+        secondSelected = null;
+      }
+    }
   }
 
   void _checkMatch() {
-    if (firstSelected!.value == secondSelected!.value) {
-      firstSelected!.isMatched = true;
-      secondSelected!.isMatched = true;
-    } else {
-      firstSelected!.isFaceUp = false;
-      secondSelected!.isFaceUp = false;
+    if (firstSelected != null && secondSelected != null) {
+      isProcessing = true;
+      Future.delayed(Duration(seconds: 1), () {
+        if (firstSelected!.value == secondSelected!.value) {
+          firstSelected!.isMatched = true;
+          secondSelected!.isMatched = true;
+        } else {
+          firstSelected!.isFaceUp = false;
+          secondSelected!.isFaceUp = false;
+        }
+        firstSelected = null;
+        secondSelected = null;
+        isProcessing = false;
+        notifyListeners();
+      });
     }
-    firstSelected = null;
-    secondSelected = null;
-    isProcessing = false;
-    notifyListeners();
   }
 }
 
@@ -95,19 +106,31 @@ class GameScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               return GestureDetector(
                 onTap: () => game.flipCard(game.cards[index]),
-                child: AnimatedContainer(
-                  duration: Duration(milliseconds: 300),
-                  decoration: BoxDecoration(
-                    color: game.cards[index].isFaceUp || game.cards[index].isMatched ? Colors.blue : Colors.grey,
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: Center(
-                    child: game.cards[index].isFaceUp || game.cards[index].isMatched
-                        ? Text(
-                      "${game.cards[index].value}",
-                      style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
-                    )
-                        : Container(),
+                child: AnimatedSwitcher(
+                  duration: Duration(milliseconds: 500),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return RotationYTransition(turns: animation, child: child);
+                  },
+                  child: game.cards[index].isFaceUp
+                      ? Container(
+                    key: ValueKey(game.cards[index].value),
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: Center(
+                      child: Text(
+                        "${game.cards[index].value}",
+                        style: TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  )
+                      : Container(
+                    key: ValueKey(-1),
+                    decoration: BoxDecoration(
+                      color: Colors.grey,
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
                   ),
                 ),
               );
@@ -115,6 +138,21 @@ class GameScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class RotationYTransition extends AnimatedWidget {
+  final Widget child;
+  RotationYTransition({required Animation<double> turns, required this.child}) : super(listenable: turns);
+
+  @override
+  Widget build(BuildContext context) {
+    final animation = listenable as Animation<double>;
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.rotationY(animation.value * pi * 2),
+      child: animation.value > 0.5 ? child : Container(),
     );
   }
 }
