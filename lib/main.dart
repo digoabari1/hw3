@@ -75,8 +75,22 @@ class GameProvider extends ChangeNotifier {
         secondSelected = null;
         isProcessing = false;
         notifyListeners();
+
+        if (_checkWinCondition()) {
+          _showWinDialog();
+        }
       });
     }
+  }
+
+  bool _checkWinCondition() {
+    return cards.every((card) => card.isMatched);
+  }
+
+  void _showWinDialog() {
+    Future.delayed(Duration(milliseconds: 300), () {
+      notifyListeners();
+    });
   }
 }
 
@@ -95,6 +109,26 @@ class GameScreen extends StatelessWidget {
       appBar: AppBar(title: Text("Card Matching Game")),
       body: Consumer<GameProvider>(
         builder: (context, game, child) {
+          if (game.cards.every((card) => card.isMatched)) {
+            Future.delayed(Duration.zero, () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text("Congratulations!"),
+                  content: Text("You matched all pairs!"),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        game._initializeGame();
+                      },
+                      child: Text("Play Again"),
+                    ),
+                  ],
+                ),
+              );
+            });
+          }
           return GridView.builder(
             padding: EdgeInsets.all(16.0),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
